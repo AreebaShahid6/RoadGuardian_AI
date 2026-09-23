@@ -1,119 +1,521 @@
-RoadGuardian AI — Local Inference Setup
-========================================
+# 🚗 RoadGuardian AI
 
-FOLDER LAYOUT (already set up for you — just drop your files in)
---------------------------------------------------------------
+### AI-Powered Road Hazard & Pothole Detection
+
+RoadGuardian AI is a **computer vision-based road monitoring system** designed to detect potholes and other road hazards from video footage using trained **YOLO object detection models**.
+
+The system processes road videos locally, identifies detected hazards, assigns tracking IDs, and generates an annotated output video for analysis and demonstration.
+
+---
+
+## 🎯 Key Features
+
+* 🕳️ **Pothole Detection** using a trained YOLO model
+* ⚠️ **Road Hazard Detection** using an optional hazard model
+* 🎯 **Object Tracking** using YOLO's built-in ByteTrack tracker
+* 🔢 **Stable Detection IDs** for tracked objects
+* 🛡️ **Anti-Flicker Memory** to reduce disappearing detection boxes
+* 📦 **Bounding Box Smoothing** to reduce box jitter
+* 🎥 **Video-Based Inference**
+* 💻 **Local Inference** without requiring cloud deployment
+* ⚙️ **Configurable Confidence Threshold**
+* 📁 Automatic generation of annotated output videos
+
+---
+
+## 🧠 How It Works
+
+```text
+        Input Road Video
+               │
+               ▼
+       ┌─────────────────┐
+       │   YOLO Models   │
+       │                 │
+       │ Pothole Model   │
+       │ Hazard Model    │
+       └────────┬────────┘
+                │
+                ▼
+       Object Detection
+                │
+                ▼
+       ByteTrack Tracking
+                │
+                ▼
+       Anti-Flicker Memory
+                │
+                ▼
+        Box Smoothing
+                │
+                ▼
+      Annotated Output Video
+```
+
+---
+
+## 📂 Project Structure
+
+```text
 RoadGuardian_AI/
+│
 ├── models/
-│   ├── hazard_best.pt      <- put your trained hazard model here (optional)
-│   └── pothole_best.pt     <- put your trained pothole model here
+│   ├── hazard_best.pt
+│   └── pothole_best.pt
+│
 ├── video/
-│   └── input_video.mp4     <- put your test video here (rename to this, or use --video)
-├── output/                 <- annotated result video appears here automatically
-├── detect.py                <- the inference script
+│   └── input_video.mp4
+│
+├── output/
+│   └── result.mp4
+│
+├── detect.py
 ├── requirements.txt
-└── README.txt (this file)
+├── README.md
+└── .gitignore
+```
 
-You only need to place whichever model(s) you actually trained. The
-script auto-detects which ones exist — if only pothole_best.pt is
-there, it runs pothole-only. If both are there, it draws both
-models' detections onto the same output video (hazard boxes in
-orange, pothole boxes in red).
+> **Note:** Model weights, input videos, and generated output files can be excluded from GitHub using `.gitignore` because they may be large.
 
+---
 
-SETUP — run these once
------------------------
-1. Open a terminal and cd into this folder:
-     cd path/to/RoadGuardian_AI
+## 🛠️ Technologies Used
 
-2. (Recommended) create a virtual environment:
-     python -m venv venv
-     venv\Scripts\activate        (Windows)
-     source venv/bin/activate     (Mac/Linux)
+| Technology             | Purpose                     |
+| ---------------------- | --------------------------- |
+| 🐍 Python              | Core programming language   |
+| 🤖 YOLO                | Object detection            |
+| 🎯 ByteTrack           | Object tracking             |
+| 👁️ OpenCV             | Video processing            |
+| 📦 Ultralytics         | YOLO inference and tracking |
+| 💻 Virtual Environment | Dependency management       |
 
-3. Install dependencies:
-     pip install -r requirements.txt
+---
 
+# ⚙️ Installation
 
-RUNNING DETECTION
-------------------
-Simplest — if your files match the default names above:
-     python detect.py
+## 1. Clone the Repository
 
-Custom filenames/paths:
-     python detect.py --video video/myclip.mp4 --hazard models/hazard_best.pt --pothole models/pothole_best.pt --output output/result.mp4
+```bash
+git clone https://github.com/AreebaShahid6/RoadGuardian_AI.git
+```
 
-Only pothole model:
-     python detect.py --pothole models/pothole_best.pt --video video/myclip.mp4
+Move into the project directory:
 
-Adjust detection confidence threshold (default 0.15 — lower = catches more/fainter potholes, but risks more false positives; raise it if you start seeing junk detections):
-     python detect.py --conf 0.25
+```bash
+cd RoadGuardian_AI
+```
 
-WHAT CHANGED — TRACKING
-------------------------
-This version uses YOLO's built-in ByteTrack tracker instead of running
-each frame as a brand-new, independent detection. This fixes three
-things at once:
-  - Boxes no longer flicker on/off frame to frame — the tracker keeps
-    an object "alive" for a few frames even if the model briefly misses it.
-  - Each detected object gets a stable ID (e.g. P3, P7) that stays the
-    same as the camera moves, instead of looking like a new detection
-    every frame. "H" prefix = hazard model, "P" prefix = pothole model.
-  - Lowering the confidence threshold to 0.15 means fainter/blurrier
-    potholes that were being filtered out now get picked up too.
+---
 
-If you now see too many false positives (boxes on things that aren't
-potholes), raise --conf back up toward 0.25-0.3 — it's a trade-off
-between catching more real potholes and avoiding junk detections.
+## 2. Create a Virtual Environment
 
+### Windows
 
-STILL FLICKERING? — ANTI-FLICKER MEMORY
------------------------------------------
-Tracking alone gives objects a stable ID, but by default a box still
-only appears on frames where the model actually redetects it — if
-confidence dips for a frame or two, the box can blink off.
+```bash
+python -m venv venv
+```
 
-This version adds a --hold buffer: when a tracked object briefly stops
-being detected, its last known box keeps being drawn (with a thinner
-outline to show it's "held") for up to --hold frames before it's
-removed. Default is 10 frames (~0.4s at 25fps).
+Activate it:
 
-     python detect.py --hold 15      (smoother, less flicker, box freezes a bit longer during gaps)
-     python detect.py --hold 5       (more responsive, closer to raw detection, may flicker more)
+```bash
+venv\Scripts\activate
+```
 
-Note: during a held frame, the box stays frozen at its last position —
-it doesn't move with the camera until the model redetects it. That's
-a deliberate trade-off: a briefly-frozen box beats a flickering one,
-but very high --hold values can look like the box is "lagging behind"
-a fast-moving pothole. 10-15 is a good starting range.
+### macOS / Linux
 
+```bash
+python -m venv venv
+source venv/bin/activate
+```
 
-BOX WOBBLING / JITTERING EVEN WHILE DETECTED? — SMOOTHING
-------------------------------------------------------------
-Separate from flicker (box disappearing), you might notice the box
-edges wobble slightly frame to frame even while a pothole is being
-detected continuously. This is normal raw model output noise — the
---smooth setting fixes it by blending each new box with its recent
-position instead of jumping straight to the new coordinates.
+---
 
-     python detect.py --smooth 0.2     (very steady, but reacts slower to real movement)
-     python detect.py --smooth 0.6     (snappier, but more wobble)
+## 3. Install Dependencies
 
-Default is 0.4 — a balance between steady and responsive. If your
-supervisor wants maximally stable boxes for a demo video, try 0.2-0.3
-combined with --hold 15.
+```bash
+pip install -r requirements.txt
+```
 
+---
 
-OUTPUT
-------
-The annotated video is written to output/result.mp4 (or wherever
-you pointed --output). Open it with any video player to see the
-detections drawn frame by frame.
+# 📦 Model Setup
 
+Place your trained model files inside the `models/` directory.
 
-TROUBLESHOOTING
-----------------
-- "Video not found" -> check the video is actually inside video/ and the filename matches what you passed to --video.
-- "Neither model was found" -> make sure hazard_best.pt / pothole_best.pt are directly inside models/, not in a subfolder.
-- Very slow processing -> this runs on CPU by default if you don't have a CUDA GPU locally. That's expected — inference on CPU is much slower than the GPU training on Kaggle. For a quick check, trim your test video to 10-15 seconds first.
-- If pip install fails on opencv-python, try: pip install opencv-python-headless instead.
+### Pothole Model
+
+```text
+models/pothole_best.pt
+```
+
+### Optional Hazard Model
+
+```text
+models/hazard_best.pt
+```
+
+The system automatically detects which models are available.
+
+### Pothole model only
+
+```text
+pothole_best.pt
+        ↓
+Pothole Detection
+```
+
+### Both models
+
+```text
+pothole_best.pt + hazard_best.pt
+              ↓
+      Combined Detection
+```
+
+The system can run with **only the pothole model**. The hazard model is optional.
+
+---
+
+# 🎥 Input Video
+
+Place your test video inside:
+
+```text
+video/input_video.mp4
+```
+
+You can also provide a custom video path using the `--video` argument.
+
+---
+
+# 🚀 Running the Application
+
+## Basic Detection
+
+If the models and video use the default names:
+
+```bash
+python detect.py
+```
+
+The annotated result will be generated in:
+
+```text
+output/result.mp4
+```
+
+---
+
+## Custom Video and Models
+
+```bash
+python detect.py --video video/myclip.mp4 --hazard models/hazard_best.pt --pothole models/pothole_best.pt --output output/result.mp4
+```
+
+---
+
+## Pothole-Only Detection
+
+If you only have a pothole model:
+
+```bash
+python detect.py --pothole models/pothole_best.pt --video video/input_video.mp4
+```
+
+---
+
+# 🎯 Detection Confidence
+
+The default confidence threshold is:
+
+```text
+0.15
+```
+
+You can change it using:
+
+```bash
+python detect.py --conf 0.25
+```
+
+### Confidence Guide
+
+| Confidence | Behavior                             |
+| ---------- | ------------------------------------ |
+| `0.15`     | Detects more faint/uncertain objects |
+| `0.20`     | Balanced detection                   |
+| `0.25`     | Fewer false positives                |
+| `0.30+`    | More strict detection                |
+
+A lower threshold may detect more potholes but can also increase false positives.
+
+---
+
+# 🎯 Object Tracking with ByteTrack
+
+RoadGuardian AI uses **ByteTrack** to improve detection consistency across video frames.
+
+Without tracking:
+
+```text
+Frame 1 → Pothole detected
+Frame 2 → Pothole detected
+Frame 3 → New detection
+Frame 4 → Detection disappears
+```
+
+With tracking:
+
+```text
+Frame 1 → P1
+Frame 2 → P1
+Frame 3 → P1
+Frame 4 → P1
+```
+
+This provides more consistent object identities throughout the video.
+
+### Detection ID Format
+
+```text
+P1 → Pothole
+P2 → Pothole
+H1 → Hazard
+H2 → Hazard
+```
+
+`P` represents a pothole and `H` represents a road hazard.
+
+---
+
+# 🛡️ Anti-Flicker Detection
+
+Even with tracking, a detection may temporarily disappear when the model's confidence drops.
+
+RoadGuardian AI includes a **hold buffer** to keep the last known bounding box visible for a configurable number of frames.
+
+### Example
+
+```bash
+python detect.py --hold 15
+```
+
+Default:
+
+```text
+--hold 10
+```
+
+### Hold Settings
+
+| Hold  | Behavior                                  |
+| ----- | ----------------------------------------- |
+| `5`   | More responsive, potentially more flicker |
+| `10`  | Balanced                                  |
+| `15`  | Smoother, less flickering                 |
+| `20+` | Longer persistence but may appear delayed |
+
+A higher value keeps a detection visible longer, but the box may temporarily remain at its previous position.
+
+---
+
+# 📐 Bounding Box Smoothing
+
+Raw object detection can cause bounding boxes to move slightly between frames.
+
+RoadGuardian AI provides a `--smooth` parameter to reduce this jitter.
+
+### Example
+
+```bash
+python detect.py --smooth 0.2
+```
+
+### Recommended Values
+
+| Smooth | Behavior                       |
+| ------ | ------------------------------ |
+| `0.2`  | Very stable, slower response   |
+| `0.3`  | Smooth and stable              |
+| `0.4`  | Balanced default               |
+| `0.6`  | Faster response, more movement |
+
+For a demonstration video, a combination such as:
+
+```bash
+python detect.py --hold 15 --smooth 0.3
+```
+
+can provide smoother-looking detections.
+
+---
+
+# 📊 Detection Pipeline
+
+```text
+Video Input
+     │
+     ▼
+Frame Extraction
+     │
+     ▼
+YOLO Object Detection
+     │
+     ├───────────────┐
+     ▼               ▼
+Pothole Model    Hazard Model
+     │               │
+     └───────┬───────┘
+             ▼
+       ByteTrack
+             │
+             ▼
+     Detection IDs
+             │
+             ▼
+      Anti-Flicker
+             │
+             ▼
+       Box Smoothing
+             │
+             ▼
+    Annotated Video
+             │
+             ▼
+     output/result.mp4
+```
+
+---
+
+# 📤 Output
+
+The processed video is automatically saved as:
+
+```text
+output/result.mp4
+```
+
+The output video contains:
+
+* Bounding boxes
+* Detection labels
+* Confidence scores
+* Tracking IDs
+* Pothole detections
+* Hazard detections when the hazard model is available
+
+---
+
+# ⚡ Performance
+
+RoadGuardian AI can run locally on a CPU or compatible GPU.
+
+### CPU
+
+CPU inference is supported but can be significantly slower.
+
+For quick testing, use a short video of approximately **10–15 seconds**.
+
+### GPU
+
+A CUDA-compatible GPU can significantly improve inference speed when the required PyTorch/CUDA environment is configured correctly.
+
+---
+
+# 🔧 Troubleshooting
+
+### ❌ Video not found
+
+Check that your video exists:
+
+```text
+video/input_video.mp4
+```
+
+Or provide the correct path:
+
+```bash
+python detect.py --video video/myvideo.mp4
+```
+
+---
+
+### ❌ Neither model was found
+
+Make sure your model files are directly inside:
+
+```text
+models/
+```
+
+For example:
+
+```text
+models/pothole_best.pt
+models/hazard_best.pt
+```
+
+and not:
+
+```text
+models/my_folder/pothole_best.pt
+```
+
+---
+
+### ❌ Slow processing
+
+If you are running inference on CPU, processing can be slow.
+
+For testing, use a shorter video.
+
+---
+
+### ❌ OpenCV installation problem
+
+Try:
+
+```bash
+pip install opencv-python-headless
+```
+
+---
+
+# 🔒 Large Files
+
+Large model weights and videos are intentionally excluded from the Git repository.
+
+Examples:
+
+```text
+*.pt
+*.mp4
+*.avi
+*.mov
+*.mkv
+```
+
+This keeps the GitHub repository lightweight and easier to clone.
+
+---
+
+# 👩‍💻 Author
+
+**Areeba Shahid**
+
+Computer Science Graduate | Computer Vision Engineer | Machine Learning Enthusiast
+
+### Connect with me
+
+* 💼 LinkedIn: [Areeba Shahid](https://www.linkedin.com/in/areeba-shahid-1b53b231/)
+* 🐙 GitHub: [AreebaShahid6](https://github.com/AreebaShahid6)
+
+---
+
+## ⭐ Project
+
+If you find **RoadGuardian AI** useful or interesting, consider giving the repository a ⭐ on GitHub!
+
+**RoadGuardian AI — Making Roads Safer with Computer Vision.** 🚗🛣️
+
